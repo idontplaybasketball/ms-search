@@ -1,0 +1,5 @@
+{
+  "name": "Financial Research Portal",
+  "description": "A sophisticated interface for browsing and filtering financial research documents, methodologies, and ratings. Users can apply multiple filters across different categories to refine search results.",
+  "requestFramePermissions": []
+}
