@@ -4,7 +4,8 @@ import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
 import Header from './components/Header';
 import GlobalSearch from './components/GlobalSearch';
-import { FILTER_DATA, MOCK_RESULTS } from './constants';
+import { FILTER_DATA } from './constants';
+import { MOCK_RESULTS } from './mockData';
 import { FilterCategory, type Filters, type Result, type FilterOption, type ActiveFilter, type FilterSection } from './types';
 
 const App: React.FC = () => {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import SearchIcon from './icons/SearchIcon';
 import CloseIcon from './icons/CloseIcon';
 import Typeahead from './Typeahead';
-import { MOCK_RESULTS } from '../constants';
+import { MOCK_RESULTS } from '../mockData';
 import { FilterCategory, type Result, type Article } from '../types';
 
 interface GlobalSearchProps {
