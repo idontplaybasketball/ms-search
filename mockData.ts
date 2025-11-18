@@ -1,34 +1,49 @@
-import { FILTER_DATA } from './constants';
-import { FilterCategory, type Result } from './types';
 
-const getLeafOptions = (category: FilterCategory): string[] => {
-    const section = FILTER_DATA.find(s => s.category === category);
-    if (!section) return [];
-    return section.options.reduce<string[]>((acc, opt) => {
-        if (opt.subItems && opt.subItems.length > 0) {
-            acc.push(...opt.subItems.map(si => si.name));
-        } else if (!opt.subItems) {
-            acc.push(opt.name);
-        }
-        return acc;
-    }, []);
-};
+import { type Result } from './types';
 
-const REGION_LEAVES = getLeafOptions(FilterCategory.Regions);
-const SECTOR_LEAVES = getLeafOptions(FilterCategory.Sectors);
-const CONTENT_TYPE_LEAVES = getLeafOptions(FilterCategory.ContentType);
-const TAG_LEAVES = getLeafOptions(FilterCategory.Tags);
+const REGIONS = [
+  'Canada', 'United States', 'Mexico',
+  'Cyprus', 'Greece', 'Italy', 'Portugal', 'Sweden', 'Slovenia', 'Denmark', 'Spain', 'Germany', 'Slovakia', 'France', 'Ireland',
+  'Australia', 'India', 'Singapore', 'New Zealand', 'China/Hong Kong',
+  'Rest of World'
+];
 
-const getRandomItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
-const getRandomSubset = <T>(arr: T[], max: number): T[] => {
+const SECTORS = [
+  'Pension Funds', 'Banking Organizations', 'Funds & Investment Management', 'Insurance Organizations', 'Mortgage Insurance', 'Non-Bank Financial Institutions',
+  'Hospitals', 'Sub-Sovereign Governments', 'Supranational Institutions', 'Universities', 'Sovereigns', 'Other Government Related Entities',
+  'Autos & Auto Suppliers', 'Consumers', 'Energy', 'Industrials', 'Infrastructure', 'Natural Resources', 'Project Finance', 'Real Estate', 'Services', 'Sports and Stadium Finance', 'Telecom/Media/Technology', 'Transportation', 'Utilities & Independent Power',
+  'ABCP', 'Auto', 'CMBS', 'Commercial Mortgages', 'Consumer Loans and Credit Cards', 'Consumer/Commercial Leases', 'Covered Bonds', 'Equipment', 'Nonperforming Loans', 'Property Assesed Clean Energy', 'RMBS', 'Split Share & Funds'
+];
+
+const CONTENT_TYPES = [
+    'Commentaries', 'Industry Studies',
+    'Credit Rating Report', 'Presale Report', 'Performance Analytics Reports', 'Ranking Report',
+    'Methodology', 'Credit Rating Scales', 'Credit Rating Policies', 'Regulatory Affairs',
+    'Interview', 'Webinar', 'Podcast', 'Perspectives'
+];
+
+const TAGS = [
+  'ESG', 'COVID-19', 'INTEGRATION', 'ORA', 'CREDITRATINGS101', 'RUSSIANUKRAINECONFLICT', 
+  'OUTLOOK', 'OUTLOOK2024', 'OUTLOOK2025', 'BANKINGUPDATE', 'DEBTCEILING', 'USCRE', 
+  'TARIFFS', 'PRIVATECREDIT', 'AUSTRALIA'
+];
+
+function getRandomItem(arr: string[]): string {
+    if (!arr || arr.length === 0) {
+        return '';
+    }
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function getRandomSubset(arr: string[], max: number): string[] {
     if (!arr || arr.length === 0) return [];
     const shuffled = [...arr].sort(() => 0.5 - Math.random());
     const count = Math.floor(Math.random() * (Math.min(max, arr.length) + 1));
     return shuffled.slice(0, count);
-};
+}
 
 const generateMockResults = (count: number, type: 'Research' | 'Issuer' | 'Rating', titlePrefix: string, descriptionPrefix: string): Result[] => {
-    return Array(count).fill(null).map((_, index) => {
+    return Array.from({ length: count }).map((_, index) => {
         const date = new Date();
         date.setDate(date.getDate() - Math.floor(Math.random() * 365 * 2)); // random date in last 2 years
         
@@ -41,16 +56,16 @@ const generateMockResults = (count: number, type: 'Research' | 'Issuer' | 'Ratin
         return {
             id: Math.random(),
             type,
-            region: getRandomItem(REGION_LEAVES),
-            sector: getRandomItem(SECTOR_LEAVES),
-            contentType: getRandomItem(CONTENT_TYPE_LEAVES),
-            tags: getRandomSubset(TAG_LEAVES, 2),
+            region: getRandomItem(REGIONS),
+            sector: getRandomItem(SECTORS),
+            contentType: getRandomItem(CONTENT_TYPES),
+            tags: getRandomSubset(TAGS, 2),
             title: `${titlePrefix} #${index + 1}`,
             description: description,
             status: 'Active',
             date: date.toLocaleDateString('en-US'), // MM/DD/YYYY format,
             image: `https://picsum.photos/seed/${Math.random()}/80/80`
-        }
+        };
     });
 }
 

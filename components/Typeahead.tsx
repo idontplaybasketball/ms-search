@@ -32,7 +32,7 @@ const Typeahead: React.FC<TypeaheadProps> = ({ suggestions, bestMatches, article
                 {bestMatches.length > 0 && (
                     <div className="mb-8">
                         <div className="flex justify-between items-center mb-4">
-                             <h3 className="text-lg font-semibold text-brand-text">Best matches</h3>
+                             <h3 className="text-lg font-semibold text-brand-text">Suggested</h3>
                              <a href="#" className="text-sm text-brand-accent hover:underline">View all</a>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -53,7 +53,7 @@ const Typeahead: React.FC<TypeaheadProps> = ({ suggestions, bestMatches, article
                 {articles.length > 0 && (
                      <div>
                         <div className="flex justify-between items-center mb-4">
-                             <h3 className="text-lg font-semibold text-brand-text">Articles</h3>
+                             <h3 className="text-lg font-semibold text-brand-text">Latest Insights</h3>
                              <a href="#" className="text-sm text-brand-accent hover:underline">View all</a>
                         </div>
                         <div className="space-y-4">

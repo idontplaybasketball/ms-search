@@ -159,7 +159,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ searchTerm, onSearchChange,
       <input
         ref={inputRef}
         type="text"
-        placeholder="I'm looking for..."
+        placeholder="Search issuers, ratings, research"
         value={searchTerm}
         onChange={(e) => onSearchChange(e.target.value)}
         onFocus={() => { if(searchTerm) setIsTypeaheadVisible(true) }}
