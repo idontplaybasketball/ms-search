@@ -1,9 +1,10 @@
+
 import React, { useState, useMemo } from 'react';
 import Accordion from './Accordion';
 import SearchIcon from './icons/SearchIcon';
 import CloseIcon from './icons/CloseIcon';
 import type { Filters, FilterOption, FilterSection } from '../types';
-import { FILTER_DATA, FilterCategory } from '../constants';
+import { FilterCategory } from '../types';
 
 interface SidebarProps {
   filters: Filters;
@@ -11,6 +12,9 @@ interface SidebarProps {
   onDateRangeChange: (range: { from: string; to: string }) => void;
   isOpen: boolean;
   onClose: () => void;
+  filterData: FilterSection[];
+  openSidebarSections: Record<string, boolean>;
+  onToggleSection: (sectionName: string) => void;
 }
 
 const CheckboxItem: React.FC<{ 
@@ -31,27 +35,31 @@ const CheckboxItem: React.FC<{
         />
         <span className="text-sm text-brand-text-light">{item.name}</span>
       </label>
-      <span className="text-xs text-gray-400">{`(${item.count})`}</span>
+      <span className="text-xs text-gray-400">{`(${item.count.toLocaleString()})`}</span>
     </div>
   );
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ filters, onFilterChange, onDateRangeChange, isOpen, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ 
+    filters, 
+    onFilterChange, 
+    onDateRangeChange, 
+    isOpen, 
+    onClose, 
+    filterData,
+    openSidebarSections,
+    onToggleSection
+}) => {
   const [globalSearch, setGlobalSearch] = useState('');
-  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
-
-  const toggleExpansion = (itemName: string) => {
-    setExpandedItems(prev => ({...prev, [itemName]: !prev[itemName]}));
-  };
 
   const filteredSections = useMemo(() => {
     if (!globalSearch.trim()) {
-      return FILTER_DATA;
+      return filterData;
     }
     const lowercasedFilter = globalSearch.toLowerCase().trim();
 
-    const newSections = FILTER_DATA.map(section => {
-      const filteredOptions = section.options.reduce<FilterOption[]>((acc, option) => {
+    const newSections = filterData.map(section => {
+      const filteredOptions = section.options.reduce((acc, option) => {
         if (section.control === 'radio') {
             if (option.name.toLowerCase().includes(lowercasedFilter)) {
                 acc.push(option);
@@ -70,11 +78,11 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, onFilterChange, onDateRangeC
           acc.push({ ...option, subItems: matchingSubItems });
         }
         return acc;
-      }, []);
+      }, [] as FilterOption[]);
       return { ...section, options: filteredOptions };
     });
     return newSections.filter(section => section.options.length > 0);
-  }, [globalSearch]);
+  }, [globalSearch, filterData]);
 
 
   const sidebarContent = (
@@ -96,7 +104,8 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, onFilterChange, onDateRangeC
         <Accordion 
             key={section.title} 
             title={section.title} 
-            defaultOpen={!!globalSearch || section.category === FilterCategory.Regions || section.category === FilterCategory.Sectors}
+            isOpen={!!globalSearch || !!openSidebarSections[section.title]}
+            onToggle={() => onToggleSection(section.title)}
         >
           {section.control === 'radio' ? (
             <div className="space-y-2 mt-2">
@@ -138,7 +147,7 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, onFilterChange, onDateRangeC
           ) : (
             <div className="space-y-1 mt-2">
               {section.options.map((item) => {
-                const isExpanded = !!globalSearch || !!expandedItems[item.name];
+                const isExpanded = !!globalSearch || !!openSidebarSections[item.name];
                 return (
                   <React.Fragment key={item.name}>
                     <CheckboxItem 
@@ -151,7 +160,7 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, onFilterChange, onDateRangeC
                       <>
                         {!isExpanded && item.subItems.length > 0 && (
                           <div className="pl-5">
-                            <button onClick={() => toggleExpansion(item.name)} className="text-sm text-brand-accent hover:underline py-1 text-left">
+                            <button onClick={() => onToggleSection(item.name)} className="text-sm text-brand-accent hover:underline py-1 text-left">
                               View All
                             </button>
                           </div>
@@ -172,7 +181,7 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, onFilterChange, onDateRangeC
                             </div>
                             {!globalSearch && (
                                 <div className="pl-5">
-                                <button onClick={() => toggleExpansion(item.name)} className="text-sm text-brand-accent hover:underline py-1 text-left">
+                                <button onClick={() => onToggleSection(item.name)} className="text-sm text-brand-accent hover:underline py-1 text-left">
                                     View Less
                                 </button>
                                 </div>

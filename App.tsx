@@ -1,20 +1,83 @@
-import React, { useState, useMemo, useCallback } from 'react';
+
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
 import Header from './components/Header';
-import { FILTER_DATA, FilterCategory, MOCK_RESULTS } from './constants';
-import type { Filters, Result, FilterOption, ActiveFilter } from './types';
+import GlobalSearch from './components/GlobalSearch';
+import { FILTER_DATA, MOCK_RESULTS } from './constants';
+import { FilterCategory, type Filters, type Result, type FilterOption, type ActiveFilter, type FilterSection } from './types';
 
 const App: React.FC = () => {
   const [filters, setFilters] = useState<Filters>({
-    regions: ['Pension Funds', 'Banking Organizations'],
-    sectors: ['Financial Institutions', 'Pension Funds'],
+    regions: [],
+    sectors: [],
     contentType: [],
     tags: [],
     dates: null,
     dateRange: { from: '', to: '' },
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [globalSearchTerm, setGlobalSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [filteredResults, setFilteredResults] = useState<Result[]>([]);
+  const [activeTab, setActiveTab] = useState('Research');
+  const [openSidebarSections, setOpenSidebarSections] = useState<Record<string, boolean>>({});
+
+  const RESULTS_PER_PAGE = 10;
+  const searchTimeout = useRef<number | null>(null);
+
+  const filterDataWithCounts = useMemo(() => {
+    const data: FilterSection[] = JSON.parse(JSON.stringify(FILTER_DATA));
+    const counts: { [K in FilterCategory]?: Record<string, number> } = {};
+
+    MOCK_RESULTS.forEach(result => {
+        const updateCount = (category: FilterCategory, value: string | string[]) => {
+            if (!counts[category]) counts[category] = {};
+            
+            if (Array.isArray(value)) {
+                value.forEach(v => {
+                    counts[category]![v] = (counts[category]![v] || 0) + 1;
+                });
+            } else if(value) {
+                counts[category]![value] = (counts[category]![value] || 0) + 1;
+            }
+        };
+
+        updateCount(FilterCategory.Regions, result.region);
+        updateCount(FilterCategory.Sectors, result.sector);
+        updateCount(FilterCategory.ContentType, result.contentType);
+        updateCount(FilterCategory.Tags, result.tags);
+    });
+
+    const updateOptionsCounts = (options: FilterOption[], category: FilterCategory): number => {
+        let categoryTotal = 0;
+        options.forEach(option => {
+            if (option.subItems && option.subItems.length > 0) {
+                option.count = updateOptionsCounts(option.subItems, category);
+            } else {
+                option.count = counts[category]?.[option.name] || 0;
+            }
+            categoryTotal += option.count;
+        });
+        return categoryTotal;
+    };
+    
+    data.forEach((section: FilterSection) => {
+        if (section.category !== FilterCategory.Dates) {
+            updateOptionsCounts(section.options, section.category);
+        }
+    });
+
+    return data;
+  }, []);
+
+  const handleToggleSidebarSection = useCallback((sectionName: string) => {
+    setOpenSidebarSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName],
+    }));
+  }, []);
 
   const handleFilterChange = useCallback((category: FilterCategory, value: string) => {
     if (category === FilterCategory.Dates) {
@@ -25,7 +88,7 @@ const App: React.FC = () => {
       return;
     }
     
-    const sectionData = FILTER_DATA.find(s => s.category === category);
+    const sectionData = filterDataWithCounts.find(s => s.category === category);
     if (!sectionData) return;
 
     let item: FilterOption | undefined;
@@ -78,7 +141,7 @@ const App: React.FC = () => {
       }
       return { ...prevFilters, [category]: newFilters };
     });
-  }, []);
+  }, [filterDataWithCounts]);
   
   const handleDateRangeChange = useCallback((range: { from: string; to: string }) => {
     setFilters(prev => ({ ...prev, dateRange: range }));
@@ -93,6 +156,7 @@ const App: React.FC = () => {
       dates: null,
       dateRange: { from: '', to: '' },
     });
+    setOpenSidebarSections({});
   }, []);
 
   const removeFilter = useCallback((category: FilterCategory, value: string) => {
@@ -102,11 +166,36 @@ const App: React.FC = () => {
     }
     handleFilterChange(category, value);
   }, [handleFilterChange]);
+  
+  const handleSearchWithFilters = useCallback((term: string, filter: { category: FilterCategory; value: string; } | null, tab: string | null) => {
+    setGlobalSearchTerm(term);
+    if (tab) {
+        setActiveTab(tab);
+    }
+    if (filter) {
+        const currentFilters = filters[filter.category] as string[];
+        if (!currentFilters.includes(filter.value)) {
+            handleFilterChange(filter.category, filter.value);
+        }
+
+        // Expand sidebar to show the applied filter
+        const newOpenSections: Record<string, boolean> = {};
+        const section = filterDataWithCounts.find(s => s.category === filter.category);
+        if (section) {
+            newOpenSections[section.title] = true; // Open main section
+            // Check if it's a sub-item and open its parent
+            for (const option of section.options) {
+                if (option.subItems?.some(si => si.name === filter.value)) {
+                    newOpenSections[option.name] = true; // Open sub-section
+                    break;
+                }
+            }
+        }
+        setOpenSidebarSections(prev => ({ ...prev, ...newOpenSections }));
+    }
+  }, [filters, handleFilterChange, filterDataWithCounts]);
 
   const activeFilters = useMemo(() => {
-    // FIX: Replaced flatMap with reduce to fix a TypeScript type inference issue.
-    // The `flatMap` method was struggling to unify the types of returned objects from different conditional branches.
-    // `reduce` provides more explicit control over the accumulator's type, resolving the error.
     return Object.entries(filters).reduce<ActiveFilter[]>((acc, [category, values]) => {
         const cat = category as FilterCategory;
         if (cat === FilterCategory.Dates) {
@@ -117,22 +206,166 @@ const App: React.FC = () => {
             }
             acc.push({ category: cat, value: displayValue, originalValue: values as string });
           }
-        } else if (Array.isArray(values)) {
+        } else if (Array.isArray(values) && category !== 'dateRange') {
           values.forEach(value => acc.push({ category: cat, value, originalValue: value }));
         }
         return acc;
       }, []);
   }, [filters]);
   
-  const filteredResults: Result[] = useMemo(() => {
-      if (activeFilters.length === 0) return MOCK_RESULTS;
-      return MOCK_RESULTS.slice(0, 5 + (activeFilters.length % 5) );
-  }, [activeFilters]);
+  // Reset page to 1 when filters, search, or tab change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, globalSearchTerm, activeTab]);
+
+  // Simulate live search and filtering
+  useEffect(() => {
+    setIsLoading(true);
+    if (searchTimeout.current) {
+      clearTimeout(searchTimeout.current);
+    }
+
+    searchTimeout.current = window.setTimeout(() => {
+      let results = MOCK_RESULTS;
+
+      // 1. Global Search
+      if (globalSearchTerm.trim() !== '') {
+        const lowercasedTerm = globalSearchTerm.toLowerCase().trim();
+        results = results.filter(result =>
+          result.title.toLowerCase().includes(lowercasedTerm) ||
+          result.description.toLowerCase().includes(lowercasedTerm)
+        );
+      }
+
+      // 2. Faceted Filters
+      const activeFilterCategories = Object.keys(filters).filter(cat => {
+        if (cat === 'dateRange') return false; // Handled by Dates
+        
+        const category = cat as FilterCategory;
+        if (category === FilterCategory.Dates) return !!filters.dates;
+
+        return filters[category] && (filters[category] as string[]).length > 0;
+      });
+
+      if (activeFilterCategories.length > 0) {
+        results = results.filter(result => {
+          // AND logic between categories
+          return activeFilterCategories.every(cat => {
+            const category = cat as FilterCategory;
+
+            switch (category) {
+              case FilterCategory.Regions:
+                return filters.regions.includes(result.region);
+              case FilterCategory.Sectors:
+                return filters.sectors.includes(result.sector);
+              case FilterCategory.ContentType:
+                return filters.contentType.includes(result.contentType);
+              case FilterCategory.Tags:
+                return result.tags.some(tag => filters.tags.includes(tag));
+              case FilterCategory.Dates: {
+                if (!filters.dates) return true;
+                
+                const resultDate = new Date(result.date);
+                if (isNaN(resultDate.getTime())) return false; // Invalid date in data
+                
+                const now = new Date();
+                now.setHours(0, 0, 0, 0);
+
+                switch (filters.dates) {
+                  case 'Last Week': {
+                    const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    return resultDate >= lastWeek;
+                  }
+                  case 'Last Month': {
+                    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+                    return resultDate >= lastMonth;
+                  }
+                  case 'Last Quarter': {
+                    const lastQuarter = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+                    return resultDate >= lastQuarter;
+                  }
+                  case 'Last Year': {
+                    const lastYear = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+                    return resultDate >= lastYear;
+                  }
+                  case 'Date Range': {
+                    const from = filters.dateRange?.from;
+                    const to = filters.dateRange?.to;
+                    if (!from && !to) return true;
+
+                    const fromDate = from ? new Date(`${from}T00:00:00`) : null;
+                    const toDate = to ? new Date(`${to}T23:59:59`) : null;
+                    
+                    if ((fromDate && isNaN(fromDate.getTime())) || (toDate && isNaN(toDate.getTime()))) return true;
+
+                    if (fromDate && toDate) return resultDate >= fromDate && resultDate <= toDate;
+                    if (fromDate) return resultDate >= fromDate;
+                    if (toDate) return resultDate <= toDate;
+                    return true;
+                  }
+                  default:
+                    return true;
+                }
+              }
+              default:
+                return true;
+            }
+          });
+        });
+      }
+
+      setFilteredResults(results);
+      setIsLoading(false);
+    }, 500);
+
+    return () => {
+      if (searchTimeout.current) {
+        clearTimeout(searchTimeout.current);
+      }
+    };
+  }, [filters, globalSearchTerm]);
+
+  const { researchResults, issuerResults, ratingResults } = useMemo(() => ({
+    researchResults: filteredResults.filter(r => r.type === 'Research'),
+    issuerResults: filteredResults.filter(r => r.type === 'Issuer'),
+    ratingResults: filteredResults.filter(r => r.type === 'Rating'),
+  }), [filteredResults]);
+
+  const displayedResultsForTab = useMemo(() => {
+    if (activeTab === 'Issuers') return issuerResults;
+    if (activeTab === 'Ratings') return ratingResults;
+    return researchResults;
+  }, [activeTab, researchResults, issuerResults, ratingResults]);
+
+  const totalResults = useMemo(() => displayedResultsForTab.length, [displayedResultsForTab]);
+  const totalPages = useMemo(() => Math.ceil(totalResults / RESULTS_PER_PAGE), [totalResults]);
+  
+  const paginatedResults = useMemo(() => {
+    const startIndex = (currentPage - 1) * RESULTS_PER_PAGE;
+    return displayedResultsForTab.slice(startIndex, startIndex + RESULTS_PER_PAGE);
+  }, [currentPage, displayedResultsForTab]);
 
   return (
     <div className="min-h-screen bg-brand-light font-sans text-brand-text">
       <div className="container mx-auto px-4 py-8">
-        <Header onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+        <div className="relative z-10">
+          <GlobalSearch 
+            searchTerm={globalSearchTerm} 
+            onSearchChange={setGlobalSearchTerm}
+            onSearchWithFilters={handleSearchWithFilters}
+          />
+        </div>
+        <Header 
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          totalResults={filteredResults.length}
+          tabCounts={{
+            research: researchResults.length,
+            issuers: issuerResults.length,
+            ratings: ratingResults.length,
+          }}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
         <main className="grid grid-cols-1 lg:grid-cols-4 lg:gap-8 mt-6 items-start">
           <Sidebar 
             filters={filters} 
@@ -140,12 +373,21 @@ const App: React.FC = () => {
             onDateRangeChange={handleDateRangeChange}
             isOpen={isSidebarOpen}
             onClose={() => setIsSidebarOpen(false)}
+            filterData={filterDataWithCounts}
+            openSidebarSections={openSidebarSections}
+            onToggleSection={handleToggleSidebarSection}
           />
           <MainContent 
-            results={filteredResults} 
+            results={paginatedResults} 
             activeFilters={activeFilters}
             onRemoveFilter={removeFilter}
             onClearFilters={clearFilters}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalResults={totalResults}
+            resultsPerPage={RESULTS_PER_PAGE}
+            isLoading={isLoading}
           />
         </main>
       </div>
